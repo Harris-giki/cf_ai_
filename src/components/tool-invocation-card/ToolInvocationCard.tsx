@@ -31,7 +31,6 @@ interface ToolInvocationCardProps {
     toolCallId: string;
     result: string;
   }) => void;
-  addToolResult: (toolCallId: string, result: string) => void;
 }
 
 export function ToolInvocationCard({
@@ -39,7 +38,6 @@ export function ToolInvocationCard({
   toolCallId,
   needsConfirmation,
   onSubmit
-  // addToolResult
 }: ToolInvocationCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -112,20 +110,7 @@ export function ToolInvocationCard({
                   const result = toolUIPart.output;
                   if (isToolResultWithContent(result)) {
                     return result.content
-                      .map((item: { type: string; text: string }) => {
-                        if (
-                          item.type === "text" &&
-                          item.text.startsWith("\n~ Page URL:")
-                        ) {
-                          const lines = item.text.split("\n").filter(Boolean);
-                          return lines
-                            .map(
-                              (line: string) => `- ${line.replace("\n~ ", "")}`
-                            )
-                            .join("\n");
-                        }
-                        return item.text;
-                      })
+                      .map((item: { type: string; text: string }) => item.text)
                       .join("\n");
                   }
                   return JSON.stringify(result, null, 2);

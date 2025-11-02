@@ -9,12 +9,6 @@ import type {
 import { convertToModelMessages, isToolUIPart } from "ai";
 import { APPROVAL } from "./shared";
 
-function isValidToolName<K extends PropertyKey, T extends object>(
-  key: K,
-  obj: T
-): key is K & keyof T {
-  return key in obj;
-}
 
 /**
  * Processes tool invocations where human input is required, executing tools when authorized.
@@ -49,7 +43,7 @@ export async function processToolCalls<Tools extends ToolSet>({
             ""
           ) as keyof typeof executions;
 
-          // Only process tools that require confirmation (are in executions object) and are in 'input-available' state
+          // Only process tools that require confirmation (are in executions object) and are in 'output-available' state
           if (!(toolName in executions) || part.state !== "output-available")
             return part;
 
@@ -57,10 +51,6 @@ export async function processToolCalls<Tools extends ToolSet>({
 
           if (part.output === APPROVAL.YES) {
             // User approved the tool execution
-            if (!isValidToolName(toolName, executions)) {
-              return part;
-            }
-
             const toolInstance = executions[toolName];
             if (toolInstance) {
               result = await toolInstance(part.input, {

@@ -12,12 +12,8 @@
     <title>AI Chat Agent</title>
 
     <script>
-      document.documentElement.classList.toggle(
-        "dark",
-        localStorage.theme === "dark" ||
-          (!("theme" in localStorage) &&
-            window.matchMedia("(prefers-color-scheme: dark)").matches)
-      );
+      // Always set dark mode by default
+      document.documentElement.classList.add("dark");
     </script>
 
     <!-- Favicon support -->

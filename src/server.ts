@@ -1,10 +1,7 @@
-import { routeAgentRequest, type Schedule } from "agents";
-
-import { getSchedulePrompt } from "agents/schedule";
+import { routeAgentRequest } from "agents";
 
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
-  generateId,
   streamText,
   type StreamTextOnFinishCallback,
   stepCountIs,
@@ -16,19 +13,39 @@ import {
 import { openai } from "@ai-sdk/openai";
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
-// import { env } from "cloudflare:workers";
 
-const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
+interface Env {
+	OPENAI_API_KEY?: string;
+	chat: any; // Agent binding
+}
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
-export class Chat extends AIChatAgent<Env> {
+export class Chat extends AIChatAgent<any> {
+  /**
+   * Override fetch to handle custom routes like clearing messages
+   */
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Handle clear messages endpoint
+    if (url.pathname.endsWith("/clear") && request.method === "POST") {
+      await this.clearMessages();
+      return Response.json({ success: true });
+    }
+
+    // Default behavior for other requests
+    return super.fetch(request);
+  }
+
+  /**
+   * Clear all messages from persistent storage
+   */
+  async clearMessages(): Promise<void> {
+    await this.saveMessages([]);
+  }
+
   /**
    * Handles incoming chat messages and manages the response stream
    */
@@ -36,11 +53,22 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // const mcpConnection = await this.mcp.connect(
-    //   "https://path-to-mcp-server/sse"
-    // );
+    // Get OpenAI API key from environment
+    const env = this.env as Env;
+    const apiKey = env?.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY is not set in environment variables");
+    }
 
-    // Collect all tools, including MCP tools
+    // Set API key in process.env for @ai-sdk/openai to pick up
+    // This is needed because @ai-sdk/openai reads from process.env by default
+    process.env.OPENAI_API_KEY = apiKey;
+
+    // Initialize model (will read OPENAI_API_KEY from process.env)
+    const model = openai("gpt-4o-2024-11-20");
+
+    // Collect all tools
     const allTools = {
       ...tools,
       ...this.mcp.getAITools()
@@ -61,12 +89,7 @@ export class Chat extends AIChatAgent<Env> {
         });
 
         const result = streamText({
-          system: `You are a helpful assistant that can do various tasks... 
-
-${getSchedulePrompt({ date: new Date() })}
-
-If the user asks to schedule a task, use the schedule tool to schedule the task.
-`,
+          system: "You are a helpful assistant that can do various tasks.",
 
           messages: convertToModelMessages(processedMessages),
           model,
@@ -85,24 +108,6 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
 
     return createUIMessageStreamResponse({ stream });
   }
-  async executeTask(description: string, _task: Schedule<string>) {
-    await this.saveMessages([
-      ...this.messages,
-      {
-        id: generateId(),
-        role: "user",
-        parts: [
-          {
-            type: "text",
-            text: `Running scheduled task: ${description}`
-          }
-        ],
-        metadata: {
-          createdAt: new Date()
-        }
-      }
-    ]);
-  }
 }
 
 /**
@@ -113,12 +118,12 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+      const hasOpenAIKey = !!env.OPENAI_API_KEY;
       return Response.json({
         success: hasOpenAIKey
       });
     }
-    if (!process.env.OPENAI_API_KEY) {
+    if (!env.OPENAI_API_KEY) {
       console.error(
         "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
       );
@@ -129,4 +134,4 @@ export default {
       new Response("Not found", { status: 404 })
     );
   }
-} satisfies ExportedHandler<Env>;
+};
