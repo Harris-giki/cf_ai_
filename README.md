@@ -22,7 +22,7 @@ Before you begin, make sure you have:
 ### Step 1: Clone or Download the Repository
 
 ```bash
-git clone <https://github.com/Harris-giki/cf_ai_>
+git clone https://github.com/Harris-giki/cf_ai_
 cd cloudfare-sdk
 ```
 
